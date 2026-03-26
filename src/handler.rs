@@ -45,7 +45,9 @@ fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionR
         }
 
         Action::Back => {
-            if app.focused_panel == FocusedPanel::Detail {
+            if app.fullscreen_detail {
+                app.fullscreen_detail = false;
+            } else if app.focused_panel == FocusedPanel::Detail {
                 app.focused_panel = FocusedPanel::ContainerList;
             }
         }
@@ -75,6 +77,13 @@ fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionR
             app.set_message(format!("Log follow: {status}"));
         }
 
+        Action::ToggleFullScreen => {
+            app.fullscreen_detail = !app.fullscreen_detail;
+            if app.fullscreen_detail {
+                app.focused_panel = FocusedPanel::Detail;
+            }
+        }
+
         Action::ScrollHalfPageUp => scroll_detail(app, -15),
         Action::ScrollHalfPageDown => scroll_detail(app, 15),
         Action::ScrollToTop => {
@@ -98,7 +107,9 @@ fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionR
         }
 
         Action::ClearFilter => {
-            if !app.search_filter.is_empty() {
+            if app.fullscreen_detail {
+                app.fullscreen_detail = false;
+            } else if !app.search_filter.is_empty() {
                 app.search_filter.clear();
                 app.rebuild_list_items();
                 app.selected_index = 0;
@@ -290,6 +301,7 @@ pub fn refresh_containers(app: &mut App) {
     match client::list_containers() {
         Ok(containers) => {
             app.containers = containers;
+            app.update_auto_collapse();
             app.rebuild_list_items();
         }
         Err(e) => {

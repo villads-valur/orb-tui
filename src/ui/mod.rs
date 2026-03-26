@@ -21,11 +21,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     ])
     .split(area);
 
-    let horizontal = Layout::horizontal([Constraint::Percentage(30), Constraint::Percentage(70)])
-        .split(vertical[1]);
-
     status_bar::render_header(frame, app, vertical[0]);
-    container_list::render(frame, app, horizontal[0]);
-    detail_panel::render(frame, app, horizontal[1]);
+
+    if app.fullscreen_detail {
+        detail_panel::render(frame, app, vertical[1]);
+    } else {
+        let horizontal =
+            Layout::horizontal([Constraint::Percentage(30), Constraint::Percentage(70)])
+                .split(vertical[1]);
+
+        container_list::render(frame, app, horizontal[0]);
+        detail_panel::render(frame, app, horizontal[1]);
+    }
+
     status_bar::render_footer(frame, app, vertical[2]);
 }

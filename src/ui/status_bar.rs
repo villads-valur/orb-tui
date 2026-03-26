@@ -82,6 +82,12 @@ fn default_keybindings(app: &App) -> Line<'static> {
         bindings.push(("Esc", "clear filter"));
     }
 
+    if app.fullscreen_detail {
+        bindings.push(("z/Esc", "exit zoom"));
+    } else {
+        bindings.push(("z", "zoom"));
+    }
+
     bindings.extend_from_slice(&[
         ("s", "start"),
         ("x", "stop"),
