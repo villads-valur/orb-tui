@@ -15,6 +15,7 @@ pub enum Action {
     RestartContainer,
     RemoveContainer,
     ToggleLogFollow,
+    ToggleFullScreen,
     ScrollHalfPageUp,
     ScrollHalfPageDown,
     ScrollToTop,

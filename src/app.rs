@@ -80,6 +80,12 @@ pub struct App {
     pub detail_scroll_offset: usize,
 
     pub collapsed_groups: HashSet<String>,
+    /// Groups the user has manually toggled. Their collapse state won't be
+    /// overridden by auto-collapse until the group's running state changes.
+    pub manually_toggled: HashSet<String>,
+
+    /// When true the detail panel takes the full width (hides container list).
+    pub fullscreen_detail: bool,
 
     pub confirm_message: Option<String>,
     pub confirm_action: Option<ConfirmAction>,
@@ -125,6 +131,9 @@ impl App {
             detail_scroll_offset: 0,
 
             collapsed_groups: HashSet::new(),
+            manually_toggled: HashSet::new(),
+
+            fullscreen_detail: false,
 
             confirm_message: None,
             confirm_action: None,
@@ -356,9 +365,48 @@ impl App {
             if self.collapsed_groups.contains(&project) {
                 self.collapsed_groups.remove(&project);
             } else {
-                self.collapsed_groups.insert(project);
+                self.collapsed_groups.insert(project.clone());
             }
+            self.manually_toggled.insert(project);
             self.rebuild_list_items();
+        }
+    }
+
+    /// Auto-collapse groups with no running containers and expand groups that
+    /// have running containers. Manual overrides are respected until the
+    /// group's running state changes (stopped <-> running).
+    pub fn update_auto_collapse(&mut self) {
+        let mut groups_with_running: HashSet<String> = HashSet::new();
+        let mut all_projects: HashSet<String> = HashSet::new();
+
+        for container in &self.containers {
+            if let Some(ref project) = container.compose_project {
+                all_projects.insert(project.clone());
+                if container.state == ContainerState::Running {
+                    groups_with_running.insert(project.clone());
+                }
+            }
+        }
+
+        for project in &all_projects {
+            let has_running = groups_with_running.contains(project);
+            let is_collapsed = self.collapsed_groups.contains(project);
+
+            if self.manually_toggled.contains(project) {
+                // Clear override once the user's choice matches what
+                // auto-collapse would do anyway.
+                let auto_would_collapse = !has_running;
+                if is_collapsed == auto_would_collapse {
+                    self.manually_toggled.remove(project);
+                }
+                continue;
+            }
+
+            if has_running {
+                self.collapsed_groups.remove(project);
+            } else {
+                self.collapsed_groups.insert(project.clone());
+            }
         }
     }
 

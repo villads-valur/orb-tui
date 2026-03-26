@@ -42,6 +42,7 @@ fn map_normal_key(key: KeyEvent) -> Action {
         KeyCode::Char('d') => Action::RemoveContainer,
 
         KeyCode::Char('f') => Action::ToggleLogFollow,
+        KeyCode::Char('z') => Action::ToggleFullScreen,
 
         KeyCode::Char('/') => Action::EnterSearch,
         KeyCode::Char('o') => Action::OpenOrbStack,

@@ -340,6 +340,7 @@ fn main() -> anyhow::Result<()> {
                 app.message = None;
                 let prev_selection = app.selected_container_id();
                 app.containers = containers;
+                app.update_auto_collapse();
                 app.rebuild_list_items();
 
                 if let Some(prev_id) = prev_selection {
