@@ -1,7 +1,7 @@
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 use crate::app::{App, FocusedPanel, ListItem as AppListItem};
@@ -9,6 +9,59 @@ use crate::ui::styles;
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let focused = app.focused_panel == FocusedPanel::ContainerList;
+
+    if !app.docker_available {
+        let block = Block::default()
+            .title(" Containers ")
+            .borders(Borders::ALL)
+            .border_style(styles::border_style(focused));
+
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+
+        let lines = if app.orbstack_starting {
+            vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Starting OrbStack...",
+                    Style::default()
+                        .fg(styles::ACCENT)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "Waiting for Docker to become available",
+                    Style::default().fg(styles::DIM_TEXT),
+                )),
+            ]
+        } else {
+            vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "OrbStack is not running",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )),
+                Line::from(""),
+                Line::from(vec![
+                    Span::styled("Press ", Style::default().fg(styles::DIM_TEXT)),
+                    Span::styled(
+                        "o",
+                        Style::default()
+                            .fg(styles::ACCENT)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(" to start OrbStack", Style::default().fg(styles::DIM_TEXT)),
+                ]),
+            ]
+        };
+
+        let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
+        frame.render_widget(paragraph, inner);
+        return;
+    }
+
     let running = app.running_count();
     let total = app.containers.len();
 
@@ -33,60 +86,56 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
                 } => {
                     let arrow = if *expanded { "▼" } else { "▶" };
                     let count_str = format!(" ({running_count}/{total_count})");
+                    let marker = if is_selected { "▌" } else { " " };
+
                     let line = Line::from(vec![
+                        Span::styled(marker, Style::default().fg(styles::ACCENT)),
                         Span::styled(format!("{arrow} "), Style::default().fg(styles::DIM_TEXT)),
-                        Span::styled(project.as_str(), styles::group_header_style()),
+                        Span::styled(
+                            project.as_str(),
+                            if is_selected {
+                                styles::selected_style()
+                            } else {
+                                styles::group_header_style()
+                            },
+                        ),
                         Span::styled(count_str, Style::default().fg(styles::DIM_TEXT)),
                     ]);
 
-                    if is_selected {
-                        ListItem::new(line).style(styles::selected_style())
-                    } else {
-                        ListItem::new(line)
-                    }
+                    ListItem::new(line)
                 }
                 AppListItem::Container { index } => {
                     let container = &app.containers[*index];
                     let state_color = styles::container_state_color(&container.state);
                     let symbol = container.state.symbol();
                     let display_name = container.display_name();
+                    let marker = if is_selected { "▌" } else { " " };
 
                     let name_style = if is_selected {
-                        Style::default().fg(Color::White)
+                        styles::selected_style()
                     } else {
                         Style::default().fg(styles::TEXT)
                     };
 
-                    let image_fg = if is_selected {
-                        Color::Gray
-                    } else {
-                        styles::DIM_TEXT
-                    };
-
                     let line = Line::from(vec![
-                        Span::raw("  "),
+                        Span::styled(marker, Style::default().fg(styles::ACCENT)),
+                        Span::raw(" "),
                         Span::styled(format!("{symbol} "), Style::default().fg(state_color)),
                         Span::styled(display_name, name_style),
                     ]);
 
                     let image_line = Line::from(vec![
-                        Span::raw("    "),
+                        Span::raw("   "),
                         Span::styled(
                             truncate_string(
                                 &container.image,
-                                area.width.saturating_sub(8) as usize,
+                                area.width.saturating_sub(7) as usize,
                             ),
-                            Style::default().fg(image_fg),
+                            Style::default().fg(styles::DIM_TEXT),
                         ),
                     ]);
 
-                    let style = if is_selected {
-                        styles::selected_style()
-                    } else {
-                        Style::default()
-                    };
-
-                    ListItem::new(vec![line, image_line]).style(style)
+                    ListItem::new(vec![line, image_line])
                 }
             }
         })

@@ -27,5 +27,6 @@ pub enum Action {
     SearchConfirm,
     SearchCancel,
     ClearFilter,
+    OpenOrbStack,
     Noop,
 }

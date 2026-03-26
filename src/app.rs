@@ -72,6 +72,8 @@ pub struct App {
     /// Which container the detail panel currently has data for.
     pub detail_loaded_for: Option<String>,
     pub detail_dirty: bool,
+    /// Incremented on every selection/tab change. Used to discard stale worker results.
+    pub detail_generation: u64,
 
     pub log_scroll_offset: usize,
     pub log_follow: bool,
@@ -85,6 +87,12 @@ pub struct App {
 
     pub search_query: String,
     pub search_filter: String,
+
+    pub docker_available: bool,
+    pub orbstack_starting: bool,
+
+    pub busy_count: usize,
+    pub spinner_tick: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +118,7 @@ impl App {
 
             detail_loaded_for: None,
             detail_dirty: true,
+            detail_generation: 0,
 
             log_scroll_offset: 0,
             log_follow: true,
@@ -123,7 +132,17 @@ impl App {
 
             search_query: String::new(),
             search_filter: String::new(),
+
+            docker_available: true,
+            orbstack_starting: false,
+            busy_count: 0,
+            spinner_tick: 0,
         }
+    }
+
+    pub fn spinner_frame(&self) -> &'static str {
+        const FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        FRAMES[self.spinner_tick % FRAMES.len()]
     }
 
     pub fn set_message(&mut self, msg: impl Into<String>) {
@@ -283,10 +302,9 @@ impl App {
         self.detail_scroll_offset = 0;
         self.log_scroll_offset = 0;
 
-        // Group headers: Info and Stats are always free (in-memory data), only Logs needs loading
         if self.selected_group_project().is_some() {
             if self.detail_tab == DetailTab::Logs {
-                self.detail_dirty = true;
+                self.mark_dirty();
             } else {
                 self.detail_loaded_for = new_key;
                 self.detail_dirty = false;
@@ -294,7 +312,6 @@ impl App {
             return;
         }
 
-        // Container: check if Info is cached
         if let Some(ref id) = new_key {
             if self.detail_tab != DetailTab::Logs && self.info_cache.contains_key(id) {
                 self.detail_loaded_for = new_key;
@@ -303,7 +320,12 @@ impl App {
             }
         }
 
+        self.mark_dirty();
+    }
+
+    pub fn mark_dirty(&mut self) {
         self.detail_dirty = true;
+        self.detail_generation += 1;
     }
 
     pub fn needs_detail_load(&self) -> bool {

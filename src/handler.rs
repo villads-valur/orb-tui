@@ -1,16 +1,23 @@
+use std::sync::mpsc;
+use std::thread;
+
 use crate::app::{App, ConfirmAction, DetailTab, FocusedPanel, InputMode, ListItem};
 use crate::docker::client;
 use crate::input::Action;
 
-pub fn handle_action(app: &mut App, action: Action) {
+pub struct ActionResult {
+    pub message: String,
+}
+
+pub fn handle_action(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionResult>) {
     match app.input_mode {
-        InputMode::Confirm => handle_confirm(app, action),
-        InputMode::Normal => handle_normal(app, action),
+        InputMode::Confirm => handle_confirm(app, action, action_tx),
+        InputMode::Normal => handle_normal(app, action, action_tx),
         InputMode::Search => handle_search(app, action),
     }
 }
 
-fn handle_normal(app: &mut App, action: Action) {
+fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionResult>) {
     match action {
         Action::Quit => app.should_quit = true,
 
@@ -34,7 +41,6 @@ fn handle_normal(app: &mut App, action: Action) {
                 app.toggle_group();
             } else if app.focused_panel == FocusedPanel::ContainerList {
                 app.focused_panel = FocusedPanel::Detail;
-                load_detail_now(app);
             }
         }
 
@@ -50,11 +56,9 @@ fn handle_normal(app: &mut App, action: Action) {
         Action::TabLogs => switch_tab(app, DetailTab::Logs),
         Action::TabStats => switch_tab(app, DetailTab::Stats),
 
-        Action::StartContainer => run_container_action(app, client::start_container, "started"),
-        Action::StopContainer => run_container_action(app, client::stop_container, "stopped"),
-        Action::RestartContainer => {
-            run_container_action(app, client::restart_container, "restarted")
-        }
+        Action::StartContainer => spawn_action(app, action_tx, "start", "started"),
+        Action::StopContainer => spawn_action(app, action_tx, "stop", "stopped"),
+        Action::RestartContainer => spawn_action(app, action_tx, "restart", "restarted"),
         Action::RemoveContainer => {
             if let Some(container) = app.selected_container() {
                 let name = container.display_name().to_string();
@@ -104,6 +108,13 @@ fn handle_normal(app: &mut App, action: Action) {
             }
         }
 
+        Action::OpenOrbStack => {
+            if !app.docker_available && !app.orbstack_starting {
+                let _ = client::start_orbstack();
+                app.orbstack_starting = true;
+            }
+        }
+
         _ => {}
     }
 }
@@ -147,11 +158,10 @@ fn switch_tab(app: &mut App, tab: DetailTab) {
     app.detail_scroll_offset = 0;
     app.log_scroll_offset = 0;
 
-    // Groups: Info and Stats are always free, only Logs needs fetching
     if app.selected_group_project().is_some() {
         if tab == DetailTab::Logs {
             app.container_logs = None;
-            app.detail_dirty = true;
+            app.mark_dirty();
         } else {
             let key = app.selected_key();
             app.detail_loaded_for = key;
@@ -160,7 +170,6 @@ fn switch_tab(app: &mut App, tab: DetailTab) {
         return;
     }
 
-    // Containers: use cache when available
     if let Some(id) = app.selected_container_id() {
         if tab != DetailTab::Logs && app.info_cache.contains_key(&id) {
             app.detail_loaded_for = Some(id);
@@ -169,7 +178,7 @@ fn switch_tab(app: &mut App, tab: DetailTab) {
         }
     }
 
-    app.detail_dirty = true;
+    app.mark_dirty();
 }
 
 fn scroll_detail(app: &mut App, amount: isize) {
@@ -189,34 +198,79 @@ fn scroll_detail(app: &mut App, amount: isize) {
     }
 }
 
-fn run_container_action(
+/// Spawn a container action (start/stop/restart) on a background thread.
+fn spawn_action(
     app: &mut App,
-    action_fn: fn(&str) -> crate::error::Result<()>,
-    success_msg: &str,
+    action_tx: &mpsc::Sender<ActionResult>,
+    action: &str,
+    past_tense: &str,
 ) {
-    if let Some(id) = app.selected_container_id() {
-        if let Err(e) = action_fn(&id) {
-            app.set_message(format!("Error: {e}"));
-        } else {
-            app.set_message(format!("Container {success_msg}"));
-            refresh_containers(app);
+    let ids: Vec<String> = if let Some(project) = app.selected_group_project().map(String::from) {
+        let ids: Vec<String> = app
+            .group_containers(&project)
+            .iter()
+            .map(|c| c.id.clone())
+            .collect();
+        if ids.is_empty() {
+            return;
         }
+        let count = ids.len();
+        app.set_message(format!("{} {count} containers...", capitalize(action)));
+        ids
+    } else if let Some(id) = app.selected_container_id() {
+        app.set_message(format!("{}...", capitalize(action)));
+        vec![id]
+    } else {
+        return;
+    };
+
+    let action = action.to_string();
+    let past_tense = past_tense.to_string();
+    let tx = action_tx.clone();
+    app.busy_count += 1;
+
+    thread::spawn(move || {
+        let (successes, errors) = client::run_action_parallel(&action, &ids);
+        let message = if ids.len() == 1 {
+            if errors.is_empty() {
+                format!("Container {past_tense}")
+            } else {
+                format!("Error: {}", errors.join(", "))
+            }
+        } else if errors.is_empty() {
+            format!("{successes} containers {past_tense}")
+        } else {
+            format!("{successes} {past_tense}, {} failed", errors.len())
+        };
+        let _ = tx.send(ActionResult { message });
+    });
+}
+
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
     }
 }
 
-fn handle_confirm(app: &mut App, action: Action) {
+fn handle_confirm(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionResult>) {
     match action {
         Action::ConfirmYes => {
             if let Some(confirm_action) = app.confirm_action.take() {
                 match confirm_action {
                     ConfirmAction::RemoveContainer(id) => {
-                        if let Err(e) = client::remove_container(&id) {
-                            app.set_message(format!("Error: {e}"));
-                        } else {
-                            app.set_message("Container removed");
-                            app.info_cache.remove(&id);
-                            refresh_containers(app);
-                        }
+                        app.info_cache.remove(&id);
+                        app.set_message("Removing...");
+                        app.busy_count += 1;
+                        let tx = action_tx.clone();
+                        thread::spawn(move || {
+                            let message = match client::remove_container(&id) {
+                                Ok(()) => "Container removed".to_string(),
+                                Err(e) => format!("Error: {e}"),
+                            };
+                            let _ = tx.send(ActionResult { message });
+                        });
                     }
                 }
             }
@@ -242,60 +296,4 @@ pub fn refresh_containers(app: &mut App) {
             app.set_message(format!("Error loading containers: {e}"));
         }
     }
-}
-
-pub fn load_detail_now(app: &mut App) {
-    if let Some(project) = app.selected_group_project().map(String::from) {
-        if app.detail_tab == DetailTab::Logs {
-            let containers: Vec<(String, String)> = app
-                .group_containers(&project)
-                .iter()
-                .filter(|c| c.state.is_running())
-                .map(|c| (c.id.clone(), c.display_name().to_string()))
-                .collect();
-
-            match client::get_group_logs(&containers, 50) {
-                Ok(logs) => app.container_logs = Some(logs),
-                Err(e) => app.set_message(format!("Error: {e}")),
-            }
-        }
-        app.detail_loaded_for = Some(format!("group:{project}"));
-        app.detail_dirty = false;
-        return;
-    }
-
-    // Handle individual container selection
-    let Some(id) = app.selected_container_id() else {
-        return;
-    };
-
-    match app.detail_tab {
-        DetailTab::Info => {
-            if !app.info_cache.contains_key(&id) {
-                match client::inspect_container(&id) {
-                    Ok(detail) => {
-                        app.info_cache.insert(id.clone(), detail);
-                    }
-                    Err(e) => app.set_message(format!("Error: {e}")),
-                }
-            }
-        }
-        DetailTab::Logs => match client::get_container_logs(&id, 500) {
-            Ok(logs) => app.container_logs = Some(logs),
-            Err(e) => app.set_message(format!("Error: {e}")),
-        },
-        DetailTab::Stats => {
-            if !app.info_cache.contains_key(&id) {
-                match client::inspect_container(&id) {
-                    Ok(detail) => {
-                        app.info_cache.insert(id.clone(), detail);
-                    }
-                    Err(e) => app.set_message(format!("Error: {e}")),
-                }
-            }
-        }
-    }
-
-    app.detail_loaded_for = Some(id);
-    app.detail_dirty = false;
 }
