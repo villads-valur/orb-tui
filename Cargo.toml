@@ -1,8 +1,8 @@
 [package]
-name = "orbstack-tui"
+name = "orb-tui"
 version = "0.1.0"
 edition = "2024"
-description = "A terminal UI for OrbStack"
+description = "A terminal UI for managing Docker containers"
 
 [[bin]]
 name = "orb-tui"

@@ -10,7 +10,7 @@ use crate::ui::styles;
 pub fn render_header(frame: &mut Frame, _app: &App, area: Rect) {
     let title = Line::from(vec![
         Span::styled(
-            " orbstack-tui ",
+            " orb-tui ",
             Style::default()
                 .fg(styles::ACCENT)
                 .add_modifier(Modifier::BOLD),
