@@ -6,6 +6,23 @@ use crate::docker::types::{
 };
 use crate::error::{AppError, Result};
 
+pub fn is_docker_available() -> bool {
+    Command::new("docker")
+        .args(["info"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+pub fn start_orbstack() -> Result<()> {
+    Command::new("open")
+        .args(["-gja", "OrbStack"])
+        .status()
+        .map_err(|e| AppError::DockerCommand(format!("Failed to open OrbStack: {e}")))?;
+    Ok(())
+}
+
 pub fn list_containers() -> Result<Vec<Container>> {
     let output = Command::new("docker")
         .args(["ps", "-a", "--format", "json", "--no-trunc"])
@@ -186,16 +203,29 @@ pub fn inspect_container(container_id: &str) -> Result<ContainerDetail> {
     })
 }
 
-pub fn start_container(container_id: &str) -> Result<()> {
-    run_docker_action("start", container_id)
-}
+/// Run a docker action on multiple containers in parallel. Returns the count of successes.
+pub fn run_action_parallel(action: &str, container_ids: &[String]) -> (usize, Vec<String>) {
+    use std::thread;
 
-pub fn stop_container(container_id: &str) -> Result<()> {
-    run_docker_action("stop", container_id)
-}
+    let handles: Vec<_> = container_ids
+        .iter()
+        .map(|id| {
+            let action = action.to_string();
+            let id = id.clone();
+            thread::spawn(move || run_docker_action(&action, &id))
+        })
+        .collect();
 
-pub fn restart_container(container_id: &str) -> Result<()> {
-    run_docker_action("restart", container_id)
+    let mut successes = 0;
+    let mut errors = Vec::new();
+    for handle in handles {
+        match handle.join() {
+            Ok(Ok(())) => successes += 1,
+            Ok(Err(e)) => errors.push(format!("{e}")),
+            Err(_) => errors.push("Thread panicked".to_string()),
+        }
+    }
+    (successes, errors)
 }
 
 pub fn remove_container(container_id: &str) -> Result<()> {

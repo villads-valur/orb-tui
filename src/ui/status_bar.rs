@@ -1,4 +1,4 @@
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -22,7 +22,7 @@ pub fn render_header(frame: &mut Frame, _app: &App, area: Rect) {
 }
 
 pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
-    let line = match app.input_mode {
+    let left_line = match app.input_mode {
         InputMode::Search => Line::from(vec![
             Span::styled(
                 " /",
@@ -57,8 +57,17 @@ pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         }
     };
 
-    let paragraph = Paragraph::new(line).style(Style::default().bg(styles::HIGHLIGHT_BG));
+    let paragraph = Paragraph::new(left_line).style(styles::statusbar_style());
     frame.render_widget(paragraph, area);
+
+    if app.busy_count > 0 {
+        let spinner = Line::from(Span::styled(
+            format!("{} ", app.spinner_frame()),
+            Style::default().fg(styles::ACCENT),
+        ));
+        let right = Paragraph::new(spinner).alignment(Alignment::Right);
+        frame.render_widget(right, area);
+    }
 }
 
 fn default_keybindings(app: &App) -> Line<'static> {
@@ -76,14 +85,13 @@ fn default_keybindings(app: &App) -> Line<'static> {
     bindings.extend_from_slice(&[
         ("s", "start"),
         ("x", "stop"),
-        ("R", "restart"),
+        ("r", "restart"),
         ("d", "remove"),
         ("q", "quit"),
     ]);
 
     let mut spans = vec![Span::raw(" ")];
 
-    // Show active filter
     if !app.search_filter.is_empty() {
         spans.push(Span::styled(
             format!("[filter: {}]", app.search_filter),

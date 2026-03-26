@@ -38,12 +38,13 @@ fn map_normal_key(key: KeyEvent) -> Action {
 
         KeyCode::Char('s') => Action::StartContainer,
         KeyCode::Char('x') => Action::StopContainer,
-        KeyCode::Char('R') => Action::RestartContainer,
+        KeyCode::Char('r') => Action::RestartContainer,
         KeyCode::Char('d') => Action::RemoveContainer,
 
         KeyCode::Char('f') => Action::ToggleLogFollow,
 
         KeyCode::Char('/') => Action::EnterSearch,
+        KeyCode::Char('o') => Action::OpenOrbStack,
 
         KeyCode::Char('g') => Action::ScrollToTop,
         KeyCode::Char('G') => Action::ScrollToBottom,
