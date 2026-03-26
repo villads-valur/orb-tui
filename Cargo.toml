@@ -1,0 +1,17 @@
+[package]
+name = "orbstack-tui"
+version = "0.1.0"
+edition = "2024"
+description = "A terminal UI for OrbStack"
+
+[[bin]]
+name = "orb-tui"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "2.0"
