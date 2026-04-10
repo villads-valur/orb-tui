@@ -104,6 +104,7 @@ pub struct App {
 #[derive(Debug, Clone)]
 pub enum ConfirmAction {
     RemoveContainer(String),
+    RemoveGroup(Vec<String>),
 }
 
 impl App {
