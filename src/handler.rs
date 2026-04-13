@@ -62,7 +62,20 @@ fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionR
         Action::StopContainer => spawn_action(app, action_tx, "stop", "stopped"),
         Action::RestartContainer => spawn_action(app, action_tx, "restart", "restarted"),
         Action::RemoveContainer => {
-            if let Some(container) = app.selected_container() {
+            if let Some(project) = app.selected_group_project().map(String::from) {
+                let ids: Vec<String> = app
+                    .group_containers(&project)
+                    .iter()
+                    .map(|c| c.id.clone())
+                    .collect();
+                if !ids.is_empty() {
+                    let count = ids.len();
+                    app.confirm_message =
+                        Some(format!("Remove {count} containers in '{project}'? (y/n)"));
+                    app.confirm_action = Some(ConfirmAction::RemoveGroup(ids));
+                    app.input_mode = InputMode::Confirm;
+                }
+            } else if let Some(container) = app.selected_container() {
                 let name = container.display_name().to_string();
                 let id = container.id.clone();
                 app.confirm_message = Some(format!("Remove container '{name}'? (y/n)"));
@@ -279,6 +292,24 @@ fn handle_confirm(app: &mut App, action: Action, action_tx: &mpsc::Sender<Action
                             let message = match client::remove_container(&id) {
                                 Ok(()) => "Container removed".to_string(),
                                 Err(e) => format!("Error: {e}"),
+                            };
+                            let _ = tx.send(ActionResult { message });
+                        });
+                    }
+                    ConfirmAction::RemoveGroup(ids) => {
+                        for id in &ids {
+                            app.info_cache.remove(id);
+                        }
+                        let count = ids.len();
+                        app.set_message(format!("Removing {count} containers..."));
+                        app.busy_count += 1;
+                        let tx = action_tx.clone();
+                        thread::spawn(move || {
+                            let (successes, errors) = client::run_action_parallel("rm", &ids);
+                            let message = if errors.is_empty() {
+                                format!("{successes} containers removed")
+                            } else {
+                                format!("{successes} removed, {} failed", errors.len())
                             };
                             let _ = tx.send(ActionResult { message });
                         });
