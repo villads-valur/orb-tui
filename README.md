@@ -1,10 +1,33 @@
 # orb-tui
 
-A terminal UI for managing Docker containers.
+A terminal UI for managing your OrbStack containers.
+
+It's built around OrbStack, but it talks to the plain `docker` CLI, so the core features work with any Docker runtime (Docker Desktop, colima, etc.). The OrbStack extras (launch prompt, `.orb.local` domains) only kick in when OrbStack is there.
 
 > **Note:** This project is in early development (v0.1). It works, but expect rough edges.
 
-<!-- TODO: Add a screenshot or GIF here -->
+```
+ orb-tui v0.1.0
+┌ Containers (4/6) ──────────┐┌────────────────────────────────────────────────────────────────────┐
+│ ▶ blog (0/2)               ││1 Info │ 2 Logs │ 3 Stats                                           │
+│ ▼ webshop (3/3)            ││                                                                    │
+│▌ ● api                     ││ Name            webshop-api-1                                      │
+│   node:22-alpine           ││ ID              3f2a9c1e8b7d                                       │
+│  ● postgres                ││ Image           node:22-alpine                                     │
+│   postgres:17              ││ Status          Up 2 hours                                         │
+│  ● redis                   ││ Domain          api.webshop.orb.local                              │
+│   redis:7                  ││ IP              192.168.97.3                                       │
+│  ● minio                   ││ Network         webshop_default                                    │
+│   minio/minio              ││ Restart         unless-stopped                                     │
+│                            ││                                                                    │
+│                            ││ Port Forwards                                                      │
+│                            ││ Host Port       Container Port    Protocol                         │
+│                            ││ 3000            3000              tcp                              │
+│                            ││                                                                    │
+│                            ││ Labels                                                             │
+└────────────────────────────┘└────────────────────────────────────────────────────────────────────┘
+ ↑↓:navigate  Enter:select  Tab:switch tab  /:search  z:zoom  s:start  x:stop  r:restart  d:remove
+```
 
 ## Why
 
@@ -12,30 +35,38 @@ Managing containers from the command line means juggling `docker ps`, `docker lo
 
 ## Features
 
-- Real-time container dashboard with auto-refresh
+- Container dashboard that refreshes every 5 seconds
 - Start, stop, restart, and remove containers
 - Inspect, logs, and resource stats in a tabbed detail view
 - Docker Compose project grouping with collapsible groups
-- Group actions (start/stop/restart all containers in a project)
-- Live search and filtering
+- Group actions (start/stop/restart/remove all containers in a project)
+- Inactive groups collapse automatically
+- Fullscreen detail view
+- Live search by container, image, service, or project name
 - Vim-style navigation
 - OrbStack integration (auto-detect, launch prompt, `.orb.local` domains)
 
 ## Requirements
 
-- macOS (for now)
+- macOS (tested). Linux should work since everything goes through the `docker` CLI, but it hasn't been tested yet
 - `docker` CLI on your PATH
+- Rust 1.88 or newer to build it
 - A Docker runtime ([OrbStack](https://orbstack.dev/), Docker Desktop, colima, etc.)
 
 ## Installation
 
-### From source
+```sh
+cargo install --git https://github.com/villads-valur/orb-tui
+```
+
+This puts `orb-tui` in `~/.cargo/bin`, which should already be on your PATH if you installed Rust with rustup.
+
+### From a local clone
 
 ```sh
 git clone https://github.com/villads-valur/orb-tui.git
 cd orb-tui
-cargo build --release
-# Binary is at target/release/orb-tui
+cargo install --path .
 ```
 
 ## Usage
@@ -52,17 +83,17 @@ That's it.
 
 | Key | Action |
 |-----|--------|
-| `j` / `Down` | Move down |
-| `k` / `Up` | Move up |
+| `j` / `Down` | Move down (scrolls when the detail panel is focused) |
+| `k` / `Up` | Move up (scrolls when the detail panel is focused) |
 | `Enter` / `l` / `Right` | Expand/collapse group, or focus detail panel |
-| `h` / `Left` | Back to container list |
+| `h` / `Left` | Back to container list, or leave fullscreen |
 | `Tab` | Next tab |
 | `Shift+Tab` | Previous tab |
 | `1` `2` `3` | Jump to Info / Logs / Stats tab |
-| `g` | Scroll to top |
-| `G` | Scroll to bottom |
-| `Ctrl+u` | Scroll half page up |
-| `Ctrl+d` | Scroll half page down |
+| `g` | Scroll detail panel to top |
+| `G` | Scroll detail panel to bottom (turns log follow back on) |
+| `Ctrl+u` | Scroll detail panel half a page up |
+| `Ctrl+d` | Scroll detail panel half a page down |
 
 ### Container Actions
 
@@ -71,8 +102,9 @@ That's it.
 | `s` | Start container (or all in group) |
 | `x` | Stop container (or all in group) |
 | `r` | Restart container (or all in group) |
-| `d` | Remove container (asks for confirmation) |
+| `d` | Remove container (or all in group, asks for confirmation) |
 | `f` | Toggle log follow mode |
+| `z` | Toggle fullscreen detail view |
 | `o` | Open OrbStack (when Docker is unavailable) |
 
 ### Search
@@ -83,16 +115,25 @@ That's it.
 | `Enter` | Confirm filter |
 | `Esc` | Cancel search |
 
+The list filters as you type.
+
+### Confirm Prompt
+
+| Key | Action |
+|-----|--------|
+| `y` / `Enter` | Confirm |
+| `n` / `Esc` | Cancel |
+
 ### General
 
 | Key | Action |
 |-----|--------|
 | `q` / `Ctrl+c` | Quit |
-| `Esc` | Clear filter / unfocus detail panel |
+| `Esc` | Leave fullscreen, clear filter, or unfocus detail panel |
 
 ## Known Limitations
 
-- macOS only (the OrbStack launcher uses `open`, but core Docker features should work anywhere)
+- Only tested on macOS. The OrbStack launcher (`o`) uses the macOS `open` command
 - No config file yet
 - No custom keybinding remapping
 - Early days, things will change
@@ -103,7 +144,7 @@ This project is very young and there's a lot of room for improvement. If somethi
 
 Some areas that could use help:
 
-- Linux / Windows support
+- Testing on Linux and Windows
 - Configuration file for custom keybindings and settings
 - Better error handling and edge cases
 - Tests

@@ -1,27 +1,27 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents working with code in this repository.
 
 ## Commands
 
 ```bash
 # Build
-rtk cargo build
+cargo build
 
 # Run
-rtk cargo run
+cargo run
 
 # Build release binary (named `orb-tui`)
-rtk cargo build --release
+cargo build --release
 
 # Check (fast, no codegen)
-rtk cargo check
+cargo check
 
 # Lint
-rtk cargo clippy
+cargo clippy
 
 # Format
-rtk cargo fmt
+cargo fmt
 ```
 
 ## Architecture

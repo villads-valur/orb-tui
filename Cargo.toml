@@ -2,7 +2,13 @@
 name = "orb-tui"
 version = "0.1.0"
 edition = "2024"
-description = "A terminal UI for managing Docker containers"
+rust-version = "1.88"
+description = "A terminal UI for managing OrbStack (and other Docker) containers"
+repository = "https://github.com/villads-valur/orb-tui"
+license = "MIT"
+readme = "README.md"
+keywords = ["orbstack", "docker", "tui", "containers", "terminal"]
+categories = ["command-line-utilities"]
 
 [[bin]]
 name = "orb-tui"
