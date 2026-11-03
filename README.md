@@ -6,28 +6,7 @@ It's built around OrbStack, but it talks to the plain `docker` CLI, so the core 
 
 > **Note:** This project is in early development (v0.1). It works, but expect rough edges.
 
-```
- orb-tui v0.1.0
-┌ Containers (4/6) ──────────┐┌────────────────────────────────────────────────────────────────────┐
-│ ▶ blog (0/2)               ││1 Info │ 2 Logs │ 3 Stats                                           │
-│ ▼ webshop (3/3)            ││                                                                    │
-│▌ ● api                     ││ Name            webshop-api-1                                      │
-│   node:22-alpine           ││ ID              3f2a9c1e8b7d                                       │
-│  ● postgres                ││ Image           node:22-alpine                                     │
-│   postgres:17              ││ Status          Up 2 hours                                         │
-│  ● redis                   ││ Domain          api.webshop.orb.local                              │
-│   redis:7                  ││ IP              192.168.97.3                                       │
-│  ● minio                   ││ Network         webshop_default                                    │
-│   minio/minio              ││ Restart         unless-stopped                                     │
-│                            ││                                                                    │
-│                            ││ Port Forwards                                                      │
-│                            ││ Host Port       Container Port    Protocol                         │
-│                            ││ 3000            3000              tcp                              │
-│                            ││                                                                    │
-│                            ││ Labels                                                             │
-└────────────────────────────┘└────────────────────────────────────────────────────────────────────┘
- ↑↓:navigate  Enter:select  Tab:switch tab  /:search  z:zoom  s:start  x:stop  r:restart  d:remove
-```
+![orb-tui in a light and a dark terminal, showing Compose projects with the Info tab open](docs/images/hero.png)
 
 ## Why
 
@@ -45,6 +24,12 @@ Managing containers from the command line means juggling `docker ps`, `docker lo
 - Live search by container, image, service, or project name
 - Vim-style navigation
 - OrbStack integration (auto-detect, launch prompt, `.orb.local` domains)
+
+## Screenshots
+
+| Dark | Light |
+|------|-------|
+| ![orb-tui in a dark terminal](docs/images/dark.png) | ![orb-tui in a light terminal](docs/images/light.png) |
 
 ## Requirements
 
