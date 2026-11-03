@@ -35,7 +35,7 @@ pub fn tab_inactive_style() -> Style {
 
 pub fn header_style() -> Style {
     Style::default()
-        .fg(Color::White)
+        .fg(TEXT)
         .add_modifier(Modifier::BOLD)
 }
 
@@ -49,7 +49,7 @@ pub fn value_style() -> Style {
 
 pub fn group_header_style() -> Style {
     Style::default()
-        .fg(Color::White)
+        .fg(TEXT)
         .add_modifier(Modifier::BOLD)
 }
 
