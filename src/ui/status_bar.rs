@@ -30,7 +30,7 @@ pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
                     .fg(styles::ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(&app.search_query, Style::default().fg(Color::White)),
+            Span::styled(&app.search_query, Style::default().fg(styles::TEXT)),
             Span::styled("█", Style::default().fg(styles::ACCENT)),
         ]),
         InputMode::Confirm => {
