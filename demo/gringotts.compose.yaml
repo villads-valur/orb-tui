@@ -1,0 +1,30 @@
+name: gringotts
+
+services:
+  api:
+    image: node:22-alpine
+    command: ["node", "/app/fake-api.js"]
+    volumes:
+      - ./fake-api.js:/app/fake-api.js:ro
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on: [postgres, redis, vault]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: goblin
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: gringotts
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  vault:
+    image: caddy:2-alpine
+    ports:
+      - "8713:80"
+    restart: unless-stopped

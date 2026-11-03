@@ -1,0 +1,12 @@
+name: daily-prophet
+
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: demo
