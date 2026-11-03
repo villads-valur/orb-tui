@@ -25,6 +25,12 @@ Managing containers from the command line means juggling `docker ps`, `docker lo
 - Vim-style navigation
 - OrbStack integration (auto-detect, launch prompt, `.orb.local` domains)
 
+## Screenshots
+
+| Dark | Light |
+|------|-------|
+| ![orb-tui in a dark terminal](docs/images/dark.png) | ![orb-tui in a light terminal](docs/images/light.png) |
+
 ## Requirements
 
 - macOS (tested). Linux should work since everything goes through the `docker` CLI, but it hasn't been tested yet
