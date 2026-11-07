@@ -132,11 +132,9 @@ fn handle_normal(app: &mut App, action: Action, action_tx: &mpsc::Sender<ActionR
             }
         }
 
-        Action::OpenOrbStack => {
-            if !app.docker_available && !app.orbstack_starting {
-                let _ = client::start_orbstack();
-                app.orbstack_starting = true;
-            }
+        Action::OpenOrbStack if !app.docker_available && !app.orbstack_starting => {
+            let _ = client::start_orbstack();
+            app.orbstack_starting = true;
         }
 
         _ => {}
@@ -194,12 +192,13 @@ fn switch_tab(app: &mut App, tab: DetailTab) {
         return;
     }
 
-    if let Some(id) = app.selected_container_id() {
-        if tab != DetailTab::Logs && app.info_cache.contains_key(&id) {
-            app.detail_loaded_for = Some(id);
-            app.detail_dirty = false;
-            return;
-        }
+    if let Some(id) = app.selected_container_id()
+        && tab != DetailTab::Logs
+        && app.info_cache.contains_key(&id)
+    {
+        app.detail_loaded_for = Some(id);
+        app.detail_dirty = false;
+        return;
     }
 
     app.mark_dirty();
