@@ -322,12 +322,13 @@ impl App {
             return;
         }
 
-        if let Some(ref id) = new_key {
-            if self.detail_tab != DetailTab::Logs && self.info_cache.contains_key(id) {
-                self.detail_loaded_for = new_key;
-                self.detail_dirty = false;
-                return;
-            }
+        if let Some(ref id) = new_key
+            && self.detail_tab != DetailTab::Logs
+            && self.info_cache.contains_key(id)
+        {
+            self.detail_loaded_for = new_key;
+            self.detail_dirty = false;
+            return;
         }
 
         self.mark_dirty();
