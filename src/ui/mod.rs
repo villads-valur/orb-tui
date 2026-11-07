@@ -6,8 +6,8 @@ pub mod stats_tab;
 pub mod status_bar;
 pub mod styles;
 
-use ratatui::layout::{Constraint, Layout};
 use ratatui::Frame;
+use ratatui::layout::{Constraint, Layout};
 
 use crate::app::App;
 
