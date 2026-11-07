@@ -14,9 +14,9 @@ use std::time::{Duration, Instant};
 use crossterm::{
     event::{self, Event, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
 use app::{App, DetailTab, InputMode};
 use docker::types::{Container, ContainerDetail, DockerStatsEntry};
@@ -66,7 +66,7 @@ enum DetailResult {
     Inspect {
         generation: u64,
         container_id: String,
-        detail: Option<ContainerDetail>,
+        detail: Option<Box<ContainerDetail>>,
         error: Option<String>,
     },
     Logs {
@@ -94,7 +94,7 @@ fn spawn_detail_worker() -> (mpsc::Sender<DetailRequest>, mpsc::Receiver<DetailR
                     container_id,
                 } => {
                     let (detail, error) = match docker::client::inspect_container(&container_id) {
-                        Ok(d) => (Some(d), None),
+                        Ok(d) => (Some(Box::new(d)), None),
                         Err(e) => (None, Some(format!("{e}"))),
                     };
                     let _ = res_tx.send(DetailResult::Inspect {
@@ -221,12 +221,12 @@ fn main() -> anyhow::Result<()> {
         // Drain all pending key events
         if event::poll(TICK_RATE)? {
             loop {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        last_keypress = Instant::now();
-                        let action = map_key_to_action(key, app.input_mode);
-                        handler::handle_action(&mut app, action, &action_tx);
-                    }
+                if let Event::Key(key) = event::read()?
+                    && key.kind == KeyEventKind::Press
+                {
+                    last_keypress = Instant::now();
+                    let action = map_key_to_action(key, app.input_mode);
+                    handler::handle_action(&mut app, action, &action_tx);
                 }
                 if !event::poll(Duration::ZERO)? {
                     break;
@@ -288,7 +288,7 @@ fn main() -> anyhow::Result<()> {
                         continue;
                     }
                     if let Some(detail) = detail {
-                        app.info_cache.insert(container_id.clone(), detail);
+                        app.info_cache.insert(container_id.clone(), *detail);
                     }
                     if let Some(e) = error {
                         app.set_message(format!("Error: {e}"));
@@ -343,13 +343,12 @@ fn main() -> anyhow::Result<()> {
                 app.update_auto_collapse();
                 app.rebuild_list_items();
 
-                if let Some(prev_id) = prev_selection {
-                    if let Some(i) = app.list_items.iter().position(|item| {
+                if let Some(prev_id) = prev_selection
+                    && let Some(i) = app.list_items.iter().position(|item| {
                         matches!(item, app::ListItem::Container { index } if app.containers[*index].id == prev_id)
                     }) {
                         app.selected_index = i;
                     }
-                }
             } else {
                 app.docker_available = false;
             }
@@ -359,14 +358,14 @@ fn main() -> anyhow::Result<()> {
             }
 
             // Refresh logs for current container via the worker (non-blocking)
-            if app.detail_tab == DetailTab::Logs {
-                if let Some(id) = app.selected_container_id() {
-                    let _ = detail_tx.send(DetailRequest::ContainerLogs {
-                        generation: app.detail_generation,
-                        container_id: id,
-                        tail: 500,
-                    });
-                }
+            if app.detail_tab == DetailTab::Logs
+                && let Some(id) = app.selected_container_id()
+            {
+                let _ = detail_tx.send(DetailRequest::ContainerLogs {
+                    generation: app.detail_generation,
+                    container_id: id,
+                    tail: 500,
+                });
             }
         }
 
