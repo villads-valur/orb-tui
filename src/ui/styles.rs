@@ -34,9 +34,7 @@ pub fn tab_inactive_style() -> Style {
 }
 
 pub fn header_style() -> Style {
-    Style::default()
-        .fg(TEXT)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(TEXT).add_modifier(Modifier::BOLD)
 }
 
 pub fn label_style() -> Style {
@@ -48,9 +46,7 @@ pub fn value_style() -> Style {
 }
 
 pub fn group_header_style() -> Style {
-    Style::default()
-        .fg(TEXT)
-        .add_modifier(Modifier::BOLD)
+    Style::default().fg(TEXT).add_modifier(Modifier::BOLD)
 }
 
 pub fn border_style(focused: bool) -> Style {
