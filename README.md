@@ -14,7 +14,7 @@ Managing containers from the command line means juggling `docker ps`, `docker lo
 
 ## Features
 
-- Container dashboard that refreshes every 5 seconds
+- Container dashboard that refreshes every 5 seconds (configurable)
 - Start, stop, restart, and remove containers
 - Inspect, logs, and resource stats in a tabbed detail view
 - Docker Compose project grouping with collapsible groups
@@ -23,6 +23,7 @@ Managing containers from the command line means juggling `docker ps`, `docker lo
 - Fullscreen detail view
 - Live search by container, image, service, or project name
 - Vim-style navigation
+- Optional TOML config for the refresh interval and custom keybindings
 - OrbStack integration (auto-detect, launch prompt, `.orb.local` domains)
 
 ## Screenshots
@@ -63,6 +64,8 @@ orb-tui
 That's it.
 
 ## Keybindings
+
+These are the defaults. You can remap the normal-mode keys in the [config file](#configuration).
 
 ### Navigation
 
@@ -116,11 +119,42 @@ The list filters as you type.
 | `q` / `Ctrl+c` | Quit |
 | `Esc` | Leave fullscreen, clear filter, or unfocus detail panel |
 
+## Configuration
+
+orb-tui reads an optional config file from `$XDG_CONFIG_HOME/orb-tui/config.toml`. If `XDG_CONFIG_HOME` isn't set it uses `~/.config/orb-tui/config.toml` (on macOS too). Every setting is optional.
+
+```toml
+# How often the container list and stats refresh, in seconds (default 5, minimum 1)
+refresh_interval_secs = 5
+
+[keybindings]
+# A single key or a list of keys per action
+quit = ["q", "Q"]
+move_down = ["j", "down"]
+move_up = ["k", "up"]
+remove_container = "ctrl+x"
+```
+
+### Keybindings
+
+- Listing an action **replaces** its default keys. Actions you don't list keep their defaults
+- If you bind a key that another action uses by default, your binding wins and the other action loses that key
+- Binding the same key to two actions is an error
+- `Ctrl+c` always quits, whatever is in the config
+- Only normal mode can be remapped. Search and the confirm prompt keep their fixed keys
+
+**Key syntax:** a single character (`j`, `G`, `/`), or a named key: `enter`, `esc`, `tab`, `shift+tab`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `backspace`, `delete`, `space`. Add `ctrl+` and/or `alt+` in front for modifiers (`ctrl+u`). For uppercase letters, use the letter itself (`G`), not `shift+g`.
+
+**Actions:** `quit`, `move_up`, `move_down`, `select`, `back`, `next_tab`, `prev_tab`, `tab_info`, `tab_logs`, `tab_stats`, `start_container`, `stop_container`, `restart_container`, `remove_container`, `toggle_log_follow`, `toggle_full_screen`, `scroll_half_page_up`, `scroll_half_page_down`, `scroll_to_top`, `scroll_to_bottom`, `enter_search`, `clear_filter`, `open_orbstack`.
+
+### Errors
+
+If there's no config file, orb-tui uses the defaults. If the file can't be read or has a problem (invalid TOML, an unknown setting, action or key), orb-tui ignores the whole file and starts with the defaults. The error shows in the footer until you press a key, and is printed again when you quit.
+
 ## Known Limitations
 
 - Only tested on macOS. The OrbStack launcher (`o`) uses the macOS `open` command
-- No config file yet
-- No custom keybinding remapping
+- Footer hints always show the default keys, even after you remap them
 - Early days, things will change
 
 ## Contributing
@@ -130,7 +164,6 @@ This project is very young and there's a lot of room for improvement. If somethi
 Some areas that could use help:
 
 - Testing on Linux and Windows
-- Configuration file for custom keybindings and settings
 - Better error handling and edge cases
 - Tests
 
