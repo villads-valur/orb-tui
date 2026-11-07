@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod docker;
 mod error;
 mod handler;
@@ -24,7 +25,6 @@ use input::map_key_to_action;
 
 const TICK_RATE: Duration = Duration::from_millis(50);
 const DETAIL_DEBOUNCE: Duration = Duration::from_millis(200);
-const REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 const IDLE_THRESHOLD: Duration = Duration::from_secs(1);
 
 // --- Background refresh (container list + stats) ---
@@ -184,6 +184,8 @@ fn build_detail_request(app: &App) -> Option<DetailRequest> {
 }
 
 fn main() -> anyhow::Result<()> {
+    let (config, config_error) = config::load();
+
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = disable_raw_mode();
@@ -198,6 +200,7 @@ fn main() -> anyhow::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new();
+    app.config_error = config_error.clone();
     let mut last_refresh = Instant::now();
     let mut last_keypress = Instant::now();
     let mut needs_initial_load = true;
@@ -225,7 +228,8 @@ fn main() -> anyhow::Result<()> {
                     && key.kind == KeyEventKind::Press
                 {
                     last_keypress = Instant::now();
-                    let action = map_key_to_action(key, app.input_mode);
+                    app.config_error = None;
+                    let action = map_key_to_action(key, app.input_mode, &config.keymap);
                     handler::handle_action(&mut app, action, &action_tx);
                 }
                 if !event::poll(Duration::ZERO)? {
@@ -376,7 +380,7 @@ fn main() -> anyhow::Result<()> {
 
         // Retry faster when Docker isn't available (checking for OrbStack startup)
         let refresh_interval = if app.docker_available {
-            REFRESH_INTERVAL
+            config.refresh_interval
         } else {
             Duration::from_secs(2)
         };
@@ -390,6 +394,10 @@ fn main() -> anyhow::Result<()> {
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    if let Some(error) = config_error {
+        eprintln!("{error}");
+    }
 
     Ok(())
 }

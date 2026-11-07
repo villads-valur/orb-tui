@@ -46,7 +46,12 @@ pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             }
         }
         InputMode::Normal => {
-            if let Some(msg) = &app.message {
+            if let Some(error) = &app.config_error {
+                Line::from(Span::styled(
+                    format!(" {error}"),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ))
+            } else if let Some(msg) = &app.message {
                 Line::from(Span::styled(
                     format!(" {msg}"),
                     Style::default().fg(Color::Yellow),

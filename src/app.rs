@@ -90,6 +90,8 @@ pub struct App {
     pub confirm_message: Option<String>,
     pub confirm_action: Option<ConfirmAction>,
     pub message: Option<String>,
+    /// Shown in the footer until the next keypress. Unlike `message` it isn't cleared on refresh.
+    pub config_error: Option<String>,
 
     pub search_query: String,
     pub search_filter: String,
@@ -139,6 +141,7 @@ impl App {
             confirm_message: None,
             confirm_action: None,
             message: None,
+            config_error: None,
 
             search_query: String::new(),
             search_filter: String::new(),
