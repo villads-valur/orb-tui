@@ -418,3 +418,294 @@ impl App {
             .count()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn container(
+        id: &str,
+        state: ContainerState,
+        project: Option<&str>,
+        service: Option<&str>,
+    ) -> Container {
+        Container {
+            id: id.to_string(),
+            name: format!("{id}-name"),
+            image: format!("{id}-image"),
+            state,
+            compose_project: project.map(String::from),
+            compose_service: service.map(String::from),
+        }
+    }
+
+    fn app_with(containers: Vec<Container>) -> App {
+        let mut app = App::new();
+        app.containers = containers;
+        app.rebuild_list_items();
+        app
+    }
+
+    fn shape(app: &App) -> Vec<String> {
+        app.list_items
+            .iter()
+            .map(|item| match item {
+                ListItem::GroupHeader {
+                    project,
+                    expanded,
+                    running_count,
+                    total_count,
+                } => {
+                    let marker = if *expanded { "" } else { "-" };
+                    format!("H{marker}:{project}({running_count}/{total_count})")
+                }
+                ListItem::Container { index } => format!("C:{index}"),
+            })
+            .collect()
+    }
+
+    use ContainerState::{Exited, Running};
+
+    #[test]
+    fn empty_containers_gives_empty_list() {
+        let app = app_with(vec![]);
+        assert!(app.list_items.is_empty());
+    }
+
+    #[test]
+    fn ungrouped_containers_have_no_header() {
+        let app = app_with(vec![
+            container("a", Running, None, None),
+            container("b", Exited, None, None),
+        ]);
+        assert_eq!(shape(&app), ["C:0", "C:1"]);
+    }
+
+    #[test]
+    fn groups_get_header_followed_by_their_containers() {
+        let app = app_with(vec![
+            container("a", Running, Some("api"), Some("web")),
+            container("b", Running, Some("api"), Some("db")),
+        ]);
+        assert_eq!(shape(&app), ["H:api(2/2)", "C:0", "C:1"]);
+    }
+
+    #[test]
+    fn groups_sorted_alphabetically_and_ungrouped_last() {
+        let app = app_with(vec![
+            container("b1", Running, Some("beta"), None),
+            container("solo", Running, None, None),
+            container("a1", Running, Some("alpha"), None),
+        ]);
+        assert_eq!(
+            shape(&app),
+            ["H:alpha(1/1)", "C:2", "H:beta(1/1)", "C:0", "C:1"]
+        );
+    }
+
+    #[test]
+    fn container_order_within_group_preserved() {
+        let app = app_with(vec![
+            container("c", Running, Some("p"), None),
+            container("other", Running, Some("q"), None),
+            container("a", Running, Some("p"), None),
+            container("b", Running, Some("p"), None),
+        ]);
+        assert_eq!(
+            shape(&app),
+            ["H:p(3/3)", "C:0", "C:2", "C:3", "H:q(1/1)", "C:1"]
+        );
+    }
+
+    #[test]
+    fn header_counts_running_and_total() {
+        let app = app_with(vec![
+            container("a", Running, Some("p"), None),
+            container("b", Exited, Some("p"), None),
+            container("c", ContainerState::Paused, Some("p"), None),
+        ]);
+        assert_eq!(shape(&app)[0], "H:p(1/3)");
+    }
+
+    #[test]
+    fn collapsed_group_shows_header_only() {
+        let mut app = app_with(vec![
+            container("a", Running, Some("p"), None),
+            container("b", Exited, Some("p"), None),
+            container("c", Running, Some("q"), None),
+        ]);
+        app.collapsed_groups.insert("p".to_string());
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["H-:p(1/2)", "H:q(1/1)", "C:2"]);
+    }
+
+    #[test]
+    fn collapse_does_not_affect_ungrouped() {
+        let mut app = app_with(vec![
+            container("a", Running, Some("p"), None),
+            container("solo", Running, None, None),
+        ]);
+        app.collapsed_groups.insert("p".to_string());
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["H-:p(1/1)", "C:1"]);
+    }
+
+    #[test]
+    fn filter_matches_name_image_service_and_project() {
+        let containers = vec![
+            container("byname", Running, None, None),
+            container("byimage", Running, None, None),
+            container("byservice", Running, Some("x"), Some("svc-match")),
+            container("byproject", Running, Some("proj-match"), None),
+        ];
+        let cases = [
+            ("byname-name", vec!["C:0"]),
+            ("byimage-image", vec!["C:1"]),
+            ("svc-match", vec!["H:x(1/1)", "C:2"]),
+            ("proj-match", vec!["H:proj-match(1/1)", "C:3"]),
+        ];
+        for (filter, expected) in cases {
+            let mut app = app_with(containers.clone());
+            app.search_filter = filter.to_string();
+            app.rebuild_list_items();
+            assert_eq!(shape(&app), expected, "filter: {filter}");
+        }
+    }
+
+    #[test]
+    fn filter_is_case_insensitive() {
+        let mut app = app_with(vec![container("Web", Running, None, None)]);
+        app.search_filter = "wEB-NAME".to_string();
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["C:0"]);
+    }
+
+    #[test]
+    fn filter_excludes_group_header_when_no_members_match() {
+        let mut app = app_with(vec![
+            container("a", Running, Some("p"), None),
+            container("match", Running, None, None),
+        ]);
+        app.search_filter = "match".to_string();
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["C:1"]);
+    }
+
+    #[test]
+    fn header_counts_reflect_filtered_members_only() {
+        let mut app = app_with(vec![
+            container("web", Running, Some("p"), None),
+            container("db", Exited, Some("p"), None),
+            container("worker", Running, Some("p"), None),
+        ]);
+        app.search_filter = "web".to_string();
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["H:p(1/1)", "C:0"]);
+    }
+
+    #[test]
+    fn search_mode_uses_search_query_not_search_filter() {
+        let mut app = app_with(vec![
+            container("a", Running, None, None),
+            container("b", Running, None, None),
+        ]);
+        app.search_filter = "a-name".to_string();
+        app.search_query = "b-name".to_string();
+
+        app.input_mode = InputMode::Search;
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["C:1"]);
+
+        app.input_mode = InputMode::Normal;
+        app.rebuild_list_items();
+        assert_eq!(shape(&app), ["C:0"]);
+    }
+
+    #[test]
+    fn selected_index_clamped_when_list_shrinks() {
+        let mut app = app_with(vec![
+            container("a", Running, None, None),
+            container("b", Running, None, None),
+            container("c", Running, None, None),
+        ]);
+        app.selected_index = 2;
+        app.search_filter = "a-name".to_string();
+        app.rebuild_list_items();
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn selected_index_untouched_when_list_becomes_empty() {
+        let mut app = app_with(vec![
+            container("a", Running, None, None),
+            container("b", Running, None, None),
+        ]);
+        app.selected_index = 1;
+        app.search_filter = "nothing-matches".to_string();
+        app.rebuild_list_items();
+        assert!(app.list_items.is_empty());
+        assert_eq!(app.selected_index, 1);
+    }
+
+    #[test]
+    fn toggle_group_collapses_expands_and_marks_manual() {
+        let mut app = app_with(vec![container("a", Running, Some("p"), None)]);
+        app.selected_index = 0;
+
+        app.toggle_group();
+        assert_eq!(shape(&app), ["H-:p(1/1)"]);
+        assert!(app.manually_toggled.contains("p"));
+
+        app.toggle_group();
+        assert_eq!(shape(&app), ["H:p(1/1)", "C:0"]);
+    }
+
+    #[test]
+    fn toggle_group_on_container_row_does_nothing() {
+        let mut app = app_with(vec![container("a", Running, Some("p"), None)]);
+        app.selected_index = 1;
+        app.toggle_group();
+        assert!(app.collapsed_groups.is_empty());
+        assert!(app.manually_toggled.is_empty());
+    }
+
+    #[test]
+    fn auto_collapse_collapses_stopped_and_expands_running_groups() {
+        let mut app = app_with(vec![
+            container("a", Running, Some("live"), None),
+            container("b", Exited, Some("live"), None),
+            container("c", Exited, Some("dead"), None),
+            container("solo", Exited, None, None),
+        ]);
+        app.collapsed_groups.insert("live".to_string());
+
+        app.update_auto_collapse();
+
+        assert!(!app.collapsed_groups.contains("live"));
+        assert!(app.collapsed_groups.contains("dead"));
+        assert_eq!(app.collapsed_groups.len(), 1);
+    }
+
+    #[test]
+    fn auto_collapse_respects_manual_toggle_until_state_matches() {
+        let mut app = app_with(vec![container("a", Running, Some("p"), None)]);
+
+        // User collapses a running group: auto-collapse leaves it alone.
+        app.collapsed_groups.insert("p".to_string());
+        app.manually_toggled.insert("p".to_string());
+        app.update_auto_collapse();
+        assert!(app.collapsed_groups.contains("p"));
+        assert!(app.manually_toggled.contains("p"));
+
+        // Group stops: collapsed now matches auto behaviour, so override clears.
+        app.containers[0].state = Exited;
+        app.update_auto_collapse();
+        assert!(app.collapsed_groups.contains("p"));
+        assert!(!app.manually_toggled.contains("p"));
+
+        // Group starts again: auto-collapse takes over and expands it.
+        app.containers[0].state = Running;
+        app.update_auto_collapse();
+        assert!(!app.collapsed_groups.contains("p"));
+    }
+}
